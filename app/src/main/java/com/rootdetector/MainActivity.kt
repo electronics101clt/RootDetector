@@ -34,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progressIndicator: LinearProgressIndicator
     private lateinit var statusText: MaterialTextView
     private lateinit var summaryText: MaterialTextView
+    private lateinit var implicationsCard: com.google.android.material.card.MaterialCardView
+    private lateinit var implicationsText: MaterialTextView
     private lateinit var recyclerView: RecyclerView
     private lateinit var runButton: MaterialButton
     private lateinit var saveButton: MaterialButton
@@ -63,6 +65,8 @@ class MainActivity : AppCompatActivity() {
         progressIndicator = findViewById(R.id.progressIndicator)
         statusText = findViewById(R.id.statusText)
         summaryText = findViewById(R.id.summaryText)
+        implicationsCard = findViewById(R.id.implicationsCard)
+        implicationsText = findViewById(R.id.implicationsText)
         recyclerView = findViewById(R.id.recyclerView)
         runButton = findViewById(R.id.runButton)
         saveButton = findViewById(R.id.saveButton)
@@ -117,6 +121,9 @@ class MainActivity : AppCompatActivity() {
                     RootStatus.NOT_ROOTED -> "NOT ROOTED"
                 }
                 statusText.setTextColor(statusColor)
+
+                // Show security implications
+                updateImplicationsCard(report)
 
                 Toast.makeText(this@MainActivity, "Detection complete", Toast.LENGTH_SHORT).show()
 
@@ -221,5 +228,70 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Storage permission required to save report", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun updateImplicationsCard(report: RootDetectionReport) {
+        val implications = StringBuilder()
+
+        when (report.overallRootStatus) {
+            RootStatus.ROOTED_CONFIRMED -> {
+                implications.appendLine("YOUR DEVICE HAS FULL ROOT ACCESS\n")
+                implications.appendLine("Apps can:")
+                implications.appendLine("• Install apps silently (no prompts)")
+                implications.appendLine("• Read private data from any app")
+                implications.appendLine("• Modify or delete system files")
+                implications.appendLine("• Survive factory reset")
+                implications.appendLine("• Hide from app lists\n")
+
+                implications.appendLine("ENTRY POINTS:")
+                if (report.suBinaryFound) {
+                    report.suBinaryPaths.forEach { path ->
+                        implications.appendLine("• $path")
+                    }
+                    implications.appendLine("  Usage: su -c <command>\n")
+                }
+
+                implications.appendLine("HOW APTOIDE USES THIS:")
+                implications.appendLine("1. Runs: su -c pm install -r /path/app.apk")
+                implications.appendLine("2. App installs with NO prompt")
+                implications.appendLine("3. Can hide from launcher")
+                implications.appendLine("4. Can persist in /system/\n")
+
+                if (!report.seLinuxEnforcing) {
+                    implications.appendLine("⚠ SELinux is DISABLED")
+                }
+                if (report.buildTags.contains("test-keys")) {
+                    implications.appendLine("⚠ Factory debug build")
+                }
+                if (report.isDebugBuild) {
+                    implications.appendLine("⚠ Debug mode enabled")
+                }
+
+                implicationsCard.visibility = android.view.View.VISIBLE
+            }
+
+            RootStatus.ROOTED_INDICATORS -> {
+                implications.appendLine("ROOT INDICATORS FOUND\n")
+                implications.appendLine("Root isn't fully functional, but security is weakened:\n")
+
+                if (report.buildTags.contains("test-keys")) {
+                    implications.appendLine("• Factory debug build")
+                }
+                if (report.isDebugBuild) {
+                    implications.appendLine("• Debug mode enabled")
+                }
+                if (!report.seLinuxEnforcing) {
+                    implications.appendLine("• SELinux disabled")
+                }
+
+                implicationsCard.visibility = android.view.View.VISIBLE
+            }
+
+            RootStatus.NOT_ROOTED -> {
+                implicationsCard.visibility = android.view.View.GONE
+            }
+        }
+
+        implicationsText.text = implications.toString()
     }
 }
